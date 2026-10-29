@@ -2,174 +2,99 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Widget</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body {
             background-color: transparent !important;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            font-family: 'JetBrains Mono', monospace;
+            margin: 0; padding: 0; overflow: hidden;
+            font-family: Arial, sans-serif;
         }
-
+        #debug { color: red; font-size: 20px; font-weight: bold; padding: 20px; text-shadow: 1px 1px 2px black; }
         #chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 10px;
-            height: 100vh;
-            box-sizing: border-box;
-            justify-content: flex-end;
-            overflow-y: hidden;
+            display: flex; flex-direction: column; gap: 8px; padding: 10px;
+            height: 100vh; box-sizing: border-box; justify-content: flex-end; overflow-y: hidden;
         }
-
         .chat-msg {
-            background: rgba(15, 15, 15, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 14px;
-            line-height: 1.4;
-            color: #ffffff;
-            word-break: break-word;
-            animation: slideIn 0.2s ease-out forwards;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 4px;
+            background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px; padding: 8px 12px; font-size: 14px; color: #fff; word-break: break-word;
         }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .chat-user {
-            font-weight: 700;
-            color: #fff;
-            margin-right: 2px;
-        }
-
-        .chat-text {
-            color: #e0e0e0;
-        }
-
-        .chat-badge {
-            width: 16px;
-            height: 16px;
-            vertical-align: middle;
-            margin-right: 2px;
-            margin-bottom: 2px;
-        }
-
-        .chat-emote {
-            vertical-align: middle;
-            margin: -4px 2px;
-            max-height: 24px;
-        }
-        
-        #chat-container::-webkit-scrollbar { width: 0px; background: transparent; }
+        .chat-user { font-weight: bold; margin-right: 4px; }
+        .chat-text { color: #e0e0e0; }
+        .chat-badge { width: 16px; height: 16px; vertical-align: middle; }
+        .chat-emote { vertical-align: middle; max-height: 24px; }
     </style>
 </head>
 <body>
 
+    <!-- Блок для отображения ошибок -->
+    <div id="debug">Загрузка...</div>
     <div id="chat-container"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
     <script>
-        const CHANNEL_NAME = 'pra1m1ch';
-        const MAX_MESSAGES = 50;
+        document.getElementById('debug').innerText = "Статус: Загрузка библиотеки...";
 
-        const BADGES = {
-            'broadcaster': 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-41e2-a5fb-72fa4a1484d2/1',
-            'moderator': 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1',
-            'vip': 'https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1',
-            'subscriber': 'https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/1',
-            'premium': 'https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a598-11e6-8769-198c5b12cf58/1'
+        // Пробуем загрузить tmi.js
+        const script = document.createElement('script');
+        script.src = "https://unpkg.com/tmi.js@1.8.5/dist/tmi.min.js";
+        
+        script.onload = function() {
+            document.getElementById('debug').innerText = "Статус: Библиотека загружена. Подключение к чату...";
+            startChat();
         };
+        
+        script.onerror = function() {
+            document.getElementById('debug').innerText = "ОШИБКА: OBS блокирует загрузку tmi.js!";
+        };
+        
+        document.head.appendChild(script);
 
-        const chatContainer = document.getElementById('chat-container');
+        function startChat() {
+            const CHANNEL_NAME = 'pra1m1ch'; // Замени на 'busters' для теста, если стример офлайн
+            const chatContainer = document.getElementById('chat-container');
 
-        const client = new tmi.Client({
-            connection: { secure: true, reconnect: true },
-            channels: [CHANNEL_NAME]
-        });
+            const client = new tmi.Client({
+                connection: { secure: true, reconnect: true },
+                channels: [CHANNEL_NAME]
+            });
 
-        client.connect().catch(console.error);
+            client.connect().then(() => {
+                document.getElementById('debug').innerText = ""; // Скрываем ошибку при успехе
+            }).catch(err => {
+                document.getElementById('debug').innerText = "ОШИБКА ПОДКЛЮЧЕНИЯ: " + err;
+            });
 
-        client.on('message', (target, context, msg, self) => {
-            if (self) return;
+            client.on('message', (target, context, msg, self) => {
+                if (self) return;
+                document.getElementById('debug').innerText = ""; // Скрываем ошибку если пошло сообщение
 
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-msg';
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg';
 
-            if (context.badges) {
-                for (const badgeName in context.badges) {
-                    if (BADGES[badgeName]) {
-                        const img = document.createElement('img');
-                        img.className = 'chat-badge';
-                        img.src = BADGES[badgeName];
-                        msgDiv.appendChild(img);
-                    }
+                if (context.badges && context.badges.moderator) {
+                    const img = document.createElement('img');
+                    img.className = 'chat-badge';
+                    img.src = 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1';
+                    msgDiv.appendChild(img);
                 }
-            }
 
-            const userSpan = document.createElement('span');
-            userSpan.className = 'chat-user';
-            userSpan.style.color = context['color'] || '#ffffff'; 
-            userSpan.textContent = context['display-name'] || context.username;
-            msgDiv.appendChild(userSpan);
+                const userSpan = document.createElement('span');
+                userSpan.className = 'chat-user';
+                userSpan.style.color = context['color'] || '#ffffff'; 
+                userSpan.textContent = (context['display-name'] || context.username) + ':';
+                msgDiv.appendChild(userSpan);
 
-            const colonSpan = document.createElement('span');
-            colonSpan.textContent = ':';
-            colonSpan.style.marginRight = '4px';
-            colonSpan.style.color = '#888';
-            msgDiv.appendChild(colonSpan);
+                const textSpan = document.createElement('span');
+                textSpan.className = 'chat-text';
+                textSpan.textContent = " " + msg;
+                msgDiv.appendChild(textSpan);
 
-            const textSpan = document.createElement('span');
-            textSpan.className = 'chat-text';
-            
-            if (context.emotes) {
-                let parsedHTML = msg;
-                const emoteList = [];
+                chatContainer.appendChild(msgDiv);
                 
-                for (const emoteId in context.emotes) {
-                    context.emotes[emoteId].forEach(position => {
-                        emoteList.push({ id: emoteId, pos: position });
-                    });
+                if (chatContainer.children.length > 50) {
+                    chatContainer.removeChild(chatContainer.firstChild);
                 }
-                
-                emoteList.sort((a, b) => {
-                    const aStart = parseInt(a.pos.split('-')[0]);
-                    const bStart = parseInt(b.pos.split('-')[0]);
-                    return bStart - aStart;
-                });
-
-                emoteList.forEach(emote => {
-                    const [start, end] = emote.pos.split('-').map(Number);
-                    const emoteName = msg.substring(start, end + 1);
-                    const imgUrl = `https://static-cdn.jtvnw.net/emoticons/v2/${emote.id}/default/dark/1.0`;
-                    const imgTag = `<img class="chat-emote" src="${imgUrl}" alt="${emoteName}">`;
-                    parsedHTML = parsedHTML.substring(0, start) + imgTag + parsedHTML.substring(end + 1);
-                });
-                
-                textSpan.innerHTML = parsedHTML;
-            } else {
-                textSpan.textContent = msg;
-            }
-
-            msgDiv.appendChild(textSpan);
-            chatContainer.appendChild(msgDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            if (chatContainer.children.length > MAX_MESSAGES) {
-                chatContainer.removeChild(chatContainer.firstChild);
-            }
-        });
+            });
+        }
     </script>
 </body>
 </html>
