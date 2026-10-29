@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Widget</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            height: 100vh;
+            box-sizing: border-box;
+            justify-content: flex-end;
+            overflow-y: hidden;
+        }
+
+        .chat-msg {
+            background: rgba(15, 15, 15, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #ffffff;
+            word-break: break-word;
+            animation: slideIn 0.2s ease-out forwards;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-user {
+            font-weight: 700;
+            color: #fff;
+            margin-right: 2px;
+        }
+
+        .chat-text {
+            color: #e0e0e0;
+        }
+
+        .chat-badge {
+            width: 16px;
+            height: 16px;
+            vertical-align: middle;
+            margin-right: 2px;
+            margin-bottom: 2px;
+        }
+
+        .chat-emote {
+            vertical-align: middle;
+            margin: -4px 2px;
+            max-height: 24px;
+        }
+        
+        #chat-container::-webkit-scrollbar { width: 0px; background: transparent; }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
+    <script>
+        const CHANNEL_NAME = 'pra1m1ch';
+        const MAX_MESSAGES = 50;
+
+        const BADGES = {
+            'broadcaster': 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-41e2-a5fb-72fa4a1484d2/1',
+            'moderator': 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1',
+            'vip': 'https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1',
+            'subscriber': 'https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/1',
+            'premium': 'https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a598-11e6-8769-198c5b12cf58/1'
+        };
+
+        const chatContainer = document.getElementById('chat-container');
+
+        const client = new tmi.Client({
+            connection: { secure: true, reconnect: true },
+            channels: [CHANNEL_NAME]
+        });
+
+        client.connect().catch(console.error);
+
+        client.on('message', (target, context, msg, self) => {
+            if (self) return;
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-msg';
+
+            if (context.badges) {
+                for (const badgeName in context.badges) {
+                    if (BADGES[badgeName]) {
+                        const img = document.createElement('img');
+                        img.className = 'chat-badge';
+                        img.src = BADGES[badgeName];
+                        msgDiv.appendChild(img);
+                    }
+                }
+            }
+
+            const userSpan = document.createElement('span');
+            userSpan.className = 'chat-user';
+            userSpan.style.color = context['color'] || '#ffffff'; 
+            userSpan.textContent = context['display-name'] || context.username;
+            msgDiv.appendChild(userSpan);
+
+            const colonSpan = document.createElement('span');
+            colonSpan.textContent = ':';
+            colonSpan.style.marginRight = '4px';
+            colonSpan.style.color = '#888';
+            msgDiv.appendChild(colonSpan);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'chat-text';
+            
+            if (context.emotes) {
+                let parsedHTML = msg;
+                const emoteList = [];
+                
+                for (const emoteId in context.emotes) {
+                    context.emotes[emoteId].forEach(position => {
+                        emoteList.push({ id: emoteId, pos: position });
+                    });
+                }
+                
+                emoteList.sort((a, b) => {
+                    const aStart = parseInt(a.pos.split('-')[0]);
+                    const bStart = parseInt(b.pos.split('-')[0]);
+                    return bStart - aStart;
+                });
+
+                emoteList.forEach(emote => {
+                    const [start, end] = emote.pos.split('-').map(Number);
+                    const emoteName = msg.substring(start, end + 1);
+                    const imgUrl = `https://static-cdn.jtvnw.net/emoticons/v2/${emote.id}/default/dark/1.0`;
+                    const imgTag = `<img class="chat-emote" src="${imgUrl}" alt="${emoteName}">`;
+                    parsedHTML = parsedHTML.substring(0, start) + imgTag + parsedHTML.substring(end + 1);
+                });
+                
+                textSpan.innerHTML = parsedHTML;
+            } else {
+                textSpan.textContent = msg;
+            }
+
+            msgDiv.appendChild(textSpan);
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            if (chatContainer.children.length > MAX_MESSAGES) {
+                chatContainer.removeChild(chatContainer.firstChild);
+            }
+        });
+    </script>
+</body>
+</html>
