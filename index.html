@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Chat Widget</title>
+    <title>Chat Only</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body {
@@ -12,8 +12,19 @@
         }
         
         #chat-container {
-            display: flex; flex-direction: column; gap: 8px; padding: 10px;
-            height: 100vh; box-sizing: border-box; justify-content: flex-start; overflow-y: hidden;
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            padding: 10px;
+            height: 100vh; 
+            box-sizing: border-box; 
+            justify-content: flex-end; 
+            overflow-y: auto; 
+            scrollbar-width: none; 
+        }
+
+        #chat-container::-webkit-scrollbar { 
+            display: none; 
         }
 
         .chat-msg {
@@ -26,7 +37,19 @@
             word-break: break-word;
             display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
             position: relative;
-            animation: box-glitch 3s infinite;
+            animation: box-glitch 3s infinite, slideUp 0.2s ease-out;
+            flex-shrink: 0; 
+            transition: opacity 1s ease, transform 1s ease;
+        }
+
+        .chat-msg.removing {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .chat-text {
@@ -95,15 +118,12 @@
                     headers: { 'Client-ID': 'kimne78kx3ncx6brgo4mv6wki5h1ko' }
                 });
                 const data = await response.json();
-                
                 if (data.data) {
                     data.data.forEach(emote => {
                         emoteMap[emote.name] = `https://static-cdn.jtvnw.net/emoticons/v2/${emote.id}/default/dark/1.0`;
                     });
                 }
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) {}
         }
 
         loadGlobalEmotes();
@@ -193,9 +213,14 @@
                     chatContainer.appendChild(msgDiv);
                     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-                    if (chatContainer.children.length > 60) {
-                        chatContainer.removeChild(chatContainer.firstChild);
-                    }
+                    setTimeout(() => {
+                        msgDiv.classList.add('removing');
+                        setTimeout(() => {
+                            if (msgDiv.parentNode) {
+                                msgDiv.remove();
+                            }
+                        }, 1000);
+                    }, 14000);
                 }
             });
         };
