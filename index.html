@@ -97,8 +97,6 @@
         const CHANNEL = 'pra1m1ch';
         const chatContainer = document.getElementById('chat-container');
         
-        const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
-
         const BADGES = {
             'broadcaster': 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/1',
             'moderator': 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1',
@@ -111,6 +109,9 @@
         };
 
         let emoteMap = {};
+        let ws = null;
+        let pingInterval = null;
+        let reconnectTimeout = null;
 
         async function loadGlobalEmotes() {
             try {
@@ -128,102 +129,143 @@
 
         loadGlobalEmotes();
 
-        ws.onopen = () => {
-            ws.send('CAP REQ :twitch.tv/tags');
-            ws.send('CAP REQ :twitch.tv/commands');
-            ws.send('PASS SCHMOOPIIE');
-            ws.send('NICK justinfan' + Math.floor(Math.random() * 99999));
-            ws.send('JOIN #' + CHANNEL);
-        };
-
-        ws.onmessage = (event) => {
-            const lines = event.data.split('\r\n');
+        function connect() {
+            if (ws) {
+                ws.onopen = null;
+                ws.onmessage = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                    ws.close();
+                }
+            }
             
-            lines.forEach(line => {
-                if (!line) return;
+            clearInterval(pingInterval);
+            clearTimeout(reconnectTimeout);
 
-                let tags = {};
-                if (line.startsWith('@')) {
-                    const tagString = line.split(' ')[0].substring(1);
-                    tagString.split(';').forEach(part => {
-                        const [key, val] = part.split('=');
-                        tags[key] = val;
-                    });
-                }
+            ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
-                if (line.includes('PRIVMSG')) {
-                    const user = tags['display-name'] || line.split('!')[0].split(':')[1];
-                    
-                    const msgStart = line.indexOf('PRIVMSG') + line.substring(line.indexOf('PRIVMSG')).indexOf(':') + 1;
-                    let msg = line.substring(msgStart);
+            ws.onopen = () => {
+                ws.send('CAP REQ :twitch.tv/tags');
+                ws.send('CAP REQ :twitch.tv/commands');
+                ws.send('PASS SCHMOOPIIE');
+                ws.send('NICK justinfan' + Math.floor(Math.random() * 99999));
+                ws.send('JOIN #' + CHANNEL);
 
-                    if (tags['emotes']) {
-                        const emotes = [];
-                        tags['emotes'].split('/').forEach(emoteData => {
-                            const [id, positions] = emoteData.split(':');
-                            positions.split(',').forEach(pos => {
-                                const [start, end] = pos.split('-').map(Number);
-                                emotes.push({ id, start, end });
-                            });
+                pingInterval = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send('PING tmi.twitch.tv');
+                    }
+                }, 60000);
+            };
+
+            ws.onmessage = (event) => {
+                const lines = event.data.split('\r\n');
+                
+                lines.forEach(line => {
+                    if (!line) return;
+
+                    if (line.startsWith('PING ')) {
+                        ws.send('PONG ' + line.substring(5));
+                        return;
+                    }
+
+                    let tags = {};
+                    if (line.startsWith('@')) {
+                        const tagString = line.split(' ')[0].substring(1);
+                        tagString.split(';').forEach(part => {
+                            const [key, val] = part.split('=');
+                            tags[key] = val;
                         });
+                    }
+
+                    if (line.includes('PRIVMSG')) {
+                        const user = tags['display-name'] || line.split('!')[0].split(':')[1];
                         
-                        emotes.sort((a, b) => b.start - a.start).forEach(emote => {
-                            const emoteName = msg.substring(emote.start, emote.end + 1);
-                            const imgTag = `<img class="chat-emote" src="https://static-cdn.jtvnw.net/emoticons/v2/${emote.id}/default/dark/1.0" alt="${emoteName}">`;
-                            msg = msg.substring(0, emote.start) + imgTag + msg.substring(emote.end + 1);
-                        });
-                    }
+                        const msgStart = line.indexOf('PRIVMSG') + line.substring(line.indexOf('PRIVMSG')).indexOf(':') + 1;
+                        let msg = line.substring(msgStart);
 
-                    const words = msg.split(' ');
-                    const formattedWords = words.map(word => {
-                        if (emoteMap[word]) {
-                            return `<img class="chat-emote" src="${emoteMap[word]}" alt="${word}">`;
+                        if (tags['emotes']) {
+                            const emotes = [];
+                            tags['emotes'].split('/').forEach(emoteData => {
+                                const [id, positions] = emoteData.split(':');
+                                positions.split(',').forEach(pos => {
+                                    const [start, end] = pos.split('-').map(Number);
+                                    emotes.push({ id, start, end });
+                                });
+                            });
+                            
+                            emotes.sort((a, b) => b.start - a.start).forEach(emote => {
+                                const emoteName = msg.substring(emote.start, emote.end + 1);
+                                const imgTag = `<img class="chat-emote" src="https://static-cdn.jtvnw.net/emoticons/v2/${emote.id}/default/dark/1.0" alt="${emoteName}">`;
+                                msg = msg.substring(0, emote.start) + imgTag + msg.substring(emote.end + 1);
+                            });
                         }
-                        return word;
-                    });
-                    msg = formattedWords.join(' ');
 
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = 'chat-msg';
-
-                    if (tags['badges']) {
-                        const badgeList = tags['badges'].split(',');
-                        badgeList.forEach(b => {
-                            const badgeName = b.split('/')[0];
-                            if (BADGES[badgeName]) {
-                                const img = document.createElement('img');
-                                img.className = 'chat-badge';
-                                img.src = BADGES[badgeName];
-                                img.onerror = function() { this.style.display = 'none'; };
-                                msgDiv.appendChild(img);
+                        const words = msg.split(' ');
+                        const formattedWords = words.map(word => {
+                            if (emoteMap[word]) {
+                                return `<img class="chat-emote" src="${emoteMap[word]}" alt="${word}">`;
                             }
+                            return word;
                         });
-                    }
+                        msg = formattedWords.join(' ');
 
-                    const userSpan = document.createElement('span');
-                    userSpan.className = 'chat-user';
-                    userSpan.textContent = user + ':';
-                    msgDiv.appendChild(userSpan);
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = 'chat-msg';
 
-                    const textSpan = document.createElement('span');
-                    textSpan.className = 'chat-text';
-                    textSpan.innerHTML = msg;
-                    msgDiv.appendChild(textSpan);
+                        if (tags['badges']) {
+                            const badgeList = tags['badges'].split(',');
+                            badgeList.forEach(b => {
+                                const badgeName = b.split('/')[0];
+                                if (BADGES[badgeName]) {
+                                    const img = document.createElement('img');
+                                    img.className = 'chat-badge';
+                                    img.src = BADGES[badgeName];
+                                    img.onerror = function() { this.style.display = 'none'; };
+                                    msgDiv.appendChild(img);
+                                }
+                            });
+                        }
 
-                    chatContainer.appendChild(msgDiv);
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                        const userSpan = document.createElement('span');
+                        userSpan.className = 'chat-user';
+                        userSpan.textContent = user + ':';
+                        msgDiv.appendChild(userSpan);
 
-                    setTimeout(() => {
-                        msgDiv.classList.add('removing');
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'chat-text';
+                        textSpan.innerHTML = msg;
+                        msgDiv.appendChild(textSpan);
+
+                        chatContainer.appendChild(msgDiv);
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+
                         setTimeout(() => {
-                            if (msgDiv.parentNode) {
-                                msgDiv.remove();
-                            }
-                        }, 1000);
-                    }, 14000);
+                            msgDiv.classList.add('removing');
+                            setTimeout(() => {
+                                if (msgDiv.parentNode) {
+                                    msgDiv.remove();
+                                }
+                            }, 1000);
+                        }, 14000);
+                    }
+                });
+            };
+
+            ws.onclose = () => {
+                clearInterval(pingInterval);
+                reconnectTimeout = setTimeout(connect, 5000);
+            };
+
+            ws.onerror = () => {
+                if (ws.readyState !== WebSocket.OPEN) {
+                    ws.close();
                 }
-            });
-        };
+            };
+        }
+
+        connect();
     </script>
 </body>
 </html>
