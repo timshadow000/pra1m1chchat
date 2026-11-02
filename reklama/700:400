@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; width: 700px; height: 400px; background: transparent !important; overflow: hidden; font-family: 'JetBrains Mono', monospace; }
+        .wrapper { width: 100%; height: 100%; padding: 10px; box-sizing: border-box; }
+        .frame { width: 100%; height: 100%; background: rgba(15, 15, 15, 0.5); border: 2px solid rgba(255, 255, 255, 0.15); border-radius: 8px; display: flex; justify-content: center; align-items: center; position: relative; backdrop-filter: blur(4px); animation: glitch 5s infinite; }
+        .text { color: rgba(255, 255, 255, 0.4); font-size: 14px; text-transform: uppercase; letter-spacing: 4px; transform: rotate(-1deg); text-align: center; padding: 20px; }
+        .c { position: absolute; width: 15px; height: 15px; border-color: rgba(255, 255, 255, 0.4); border-style: solid; }
+        .tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+        .tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+        .bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+        .br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+        @keyframes glitch { 
+            0%, 94%, 100% { transform: translate(0); border-color: rgba(255, 255, 255, 0.15); } 
+            95% { transform: translate(-2px, 2px); border-color: rgba(255, 0, 0, 0.4); } 
+            96% { transform: translate(2px, -2px); border-color: rgba(0, 255, 255, 0.4); } 
+            97% { transform: translate(0); border-color: rgba(255, 255, 255, 0.15); } 
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="frame">
+            <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
+            <div class="text">Тут могла бы быть ваша реклама</div>
+        </div>
+    </div>
+</body>
+</html>
